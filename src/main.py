@@ -1,26 +1,14 @@
-import psycopg2
-from database.database import loadratings
+from dotenv import load_dotenv
+from database.database import get_connection, loadratings
 from partitioning.partitioning import rangepartition, roundrobinpartition, rangeinsert, roundrobininsert
-from utils.utils import get_partition_stats
+from utils.utils import download_movielens_dataset
 
-def get_connection():
-    """Tạo kết nối đến PostgreSQL database"""
-    try:
-        conn = psycopg2.connect(
-            host='localhost',
-            database='dds_assgn1',
-            user='postgres',
-            password='1234',
-            port='5432'
-        )
-        return conn
-    except psycopg2.Error as e:
-        print(f"Lỗi kết nối database: {e}")
-        raise
+# Load environment variables
+load_dotenv()
 
 def main():
-    # Example usage
-    ratings_path = "tests/test_data.dat"  # Path to test data file
+    # Download and get path to ratings.dat
+    ratings_path = download_movielens_dataset()
     
     # Get database connection
     conn = get_connection()
@@ -40,7 +28,8 @@ def main():
         roundrobininsert("ratings", 2, 2, 3.5, conn)
         
         # Get partition statistics
-        get_partition_stats()
+        # get_partition_stats()
+        # verify_data_integrity()
         
     finally:
         conn.close()

@@ -2,19 +2,12 @@ import psycopg2
 from config.config import DatabaseConfig
 
 def get_connection():
-    """Tạo kết nối đến PostgreSQL database"""
+    """Create connection to PostgreSQL database"""
     try:
-        db_config = DatabaseConfig.get_instance()
-        conn = psycopg2.connect(
-            host=db_config.host,
-            database=db_config.database,
-            user=db_config.user,
-            password=db_config.password,
-            port=db_config.port
-        )
+        conn = psycopg2.connect(**DatabaseConfig.get_connection_params())
         return conn
     except psycopg2.Error as e:
-        print(f"Lỗi kết nối database: {e}")
+        print(f"Database connection error: {e}")
         raise
 
 def loadratings(ratingstablename, ratingsfilepath, openconnection):
@@ -22,14 +15,14 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
     Function to load data in @ratingsfilepath file to a table called @ratingstablename.
     
     Args:
-        ratingstablename: Tên bảng ratings
-        ratingsfilepath: Đường dẫn đến file ratings.dat
-        openconnection: Kết nối database
+        ratingstablename: Name of the ratings table
+        ratingsfilepath: Path to the ratings.dat file
+        openconnection: Database connection
     """
     cursor = openconnection.cursor()
     
     try:
-        # Tạo bảng nếu chưa tồn tại
+        # Create table if it doesn't exist
         cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {ratingstablename} (
                 userid INT,
@@ -39,22 +32,22 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
             )
         """)
         
-        # Xóa dữ liệu cũ nếu có
+        # Clear existing data if any
         cursor.execute(f"DELETE FROM {ratingstablename}")
         
-        # Đọc và chèn dữ liệu từ file
+        # Read and insert data from file
         with open(ratingsfilepath, 'r') as f:
             batch_size = 10000
             batch = []
             count = 0
             
             for line in f:
-                # Parse dữ liệu từ file
+                # Parse data from file
                 userid, movieid, rating, _ = line.strip().split('::')
                 batch.append((int(userid), int(movieid), float(rating)))
                 count += 1
                 
-                # Chèn theo batch để tối ưu hiệu năng
+                # Insert in batches for better performance
                 if len(batch) >= batch_size:
                     cursor.executemany(f"""
                         INSERT INTO {ratingstablename} (userid, movieid, rating)
@@ -64,7 +57,7 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
                     """, batch)
                     batch = []
             
-            # Chèn batch cuối cùng nếu còn
+            # Insert remaining batch if any
             if batch:
                 cursor.executemany(f"""
                     INSERT INTO {ratingstablename} (userid, movieid, rating)
@@ -74,11 +67,11 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
                 """, batch)
         
         openconnection.commit()
-        print(f"Đã load {count} records vào bảng {ratingstablename}")
+        print(f"Loaded {count} records into table {ratingstablename}")
         
     except Exception as e:
         openconnection.rollback()
-        print(f"Lỗi khi load ratings: {e}")
+        print(f"Error loading ratings: {e}")
         raise
     finally:
         cursor.close() 

@@ -1,74 +1,67 @@
 # MovieLens Database Partitioning Project
 
-### Tổng quan
-Dự án này triển khai các chiến lược phân vùng cơ sở dữ liệu cho tập dữ liệu MovieLens sử dụng PostgreSQL. Nó minh họa cả hai kỹ thuật phân vùng theo phạm vi (range partitioning) và phân vùng luân phiên (round-robin partitioning) để xử lý dữ liệu đánh giá phim.
+### Overview
+This project implements database partitioning strategies for the MovieLens dataset using PostgreSQL. It demonstrates both range partitioning and round-robin partitioning techniques for handling movie ratings data.
 
-### Yêu cầu
-- Python 3.3.12.3
-- PostgreSQL
-- Các gói Python cần thiết:
+### Prerequisites
+- Ubuntu 16.04
+- Python 3.12.3
+- PostgreSQL 17.5 or later
+- Required Python packages:
   - psycopg2
+  - python-dotenv
+  - requests
 
-### Hướng dẫn cài đặt môi trường trên Ubuntu
+### Installation Steps
 
-#### 1. Cài đặt Python và các công cụ cần thiết
+#### 1. Install PostgreSQL
+1. Download PostgreSQL from https://www.postgresql.org/download/windows/
+2. Run the installer and follow these steps:
+   - Choose installation directory
+   - Select components (keep all default)
+   - Choose data directory
+   - Set password for database superuser (postgres)
+   - Keep default port (5432)
+   - Choose locale
+   - **Important**: Check "Add PostgreSQL to PATH" during installation
+
+#### 2. Create Database
+After installation, open Command Prompt and run:
 ```bash
-# Cập nhật package list
-sudo apt update
+# Connect to PostgreSQL
+psql -U postgres
 
-# Cài đặt Python và các công cụ cần thiết
-sudo apt install python3 python3-pip python3-venv postgresql postgresql-contrib
+# In psql console:
+CREATE DATABASE dds_assgn1;
+\q
 ```
 
-#### 2. Cài đặt PostgreSQL
+#### 3. Set up Python Environment
 ```bash
-# Khởi động PostgreSQL service
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+# Create virtual environment
+python -m venv venv
 
-# Tạo database và user
-sudo -u postgres psql
-postgres=# CREATE DATABASE dds_assgn1;
-postgres=# CREATE USER postgres WITH PASSWORD '1234';
-postgres=# GRANT ALL PRIVILEGES ON DATABASE dds_assgn1 TO postgres;
-postgres=# \q
-```
-
-#### 3. Thiết lập môi trường Python
-```bash
-# Clone repository (nếu chưa có)
-git clone <repository-url>
-cd movielens
-
-# Tạo môi trường ảo
-python3 -m venv venv
-
-# Kích hoạt môi trường ảo
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On Ubuntu:
 source venv/bin/activate
 
-# Cài đặt các package cần thiết
-pip install psycopg2-binary
+# Install required packages
+pip install psycopg2-binary python-dotenv
 ```
 
-#### 4. Kiểm tra cài đặt
-```bash
-# Kiểm tra Python version
-python --version
-
-# Kiểm tra PostgreSQL
-psql -U postgres -d dds_assgn1 -h localhost
+#### 4. Configure Environment Variables
+Create a `.env` file in the project root with:
+```
+DB_HOST=localhost
+DB_NAME=dds_assgn1
+DB_USER=postgres
+DB_PASSWORD=your_password_here
+DB_PORT=5432
 ```
 
-### Thiết lập Cơ sở dữ liệu
-1. Tạo cơ sở dữ liệu PostgreSQL tên `dds_assgn1`
-2. Thông số kết nối mặc định:
-   - Host: localhost
-   - Port: 5432
-   - User: postgres
-   - Password: 1234
-   - Database: dds_assgn1
-
-### Cấu trúc Dự án
+### Project Structure
 ```
 movielens/
 ├── src/
@@ -80,20 +73,25 @@ movielens/
     └── test_data.dat
 ```
 
-### Tính năng
-- Phân vùng theo phạm vi cho dữ liệu đánh giá
-- Phân vùng luân phiên
-- Chèn dữ liệu với cả hai phương pháp phân vùng
-- Tạo thống kê phân vùng
+### Features
+- Range partitioning of ratings data
+- Round-robin partitioning
+- Data insertion with both partitioning methods
+- Partition statistics generation
 
-### Cách sử dụng
-1. Đảm bảo PostgreSQL đang chạy và cơ sở dữ liệu đã được tạo
-2. Đặt file dữ liệu đánh giá vào đường dẫn `tests/test_data.dat`
-3. Chạy script chính:
+### Usage
+1. Ensure PostgreSQL is running
+2. Activate virtual environment
+3. Run the main script:
 ```bash
-# Đảm bảo môi trường ảo đã được kích hoạt
-source venv/bin/activate
-
-# Chạy script
 python src/main.py
-``` 
+```
+
+### Troubleshooting
+If you encounter database connection errors:
+1. Verify PostgreSQL is running:
+   - Windows: Check Services app for "PostgreSQL" service
+   - Ubuntu: `sudo systemctl status postgresql`
+2. Check connection parameters in `.env` file
+3. Ensure database exists: `psql -U postgres -c "\l"`
+4. Verify user permissions: `psql -U postgres -d dds_assgn1` 
