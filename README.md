@@ -15,25 +15,18 @@ This project implements database partitioning strategies for the MovieLens datas
 ### Installation Steps
 
 #### 1. Install PostgreSQL
-1. Download PostgreSQL from https://www.postgresql.org/download/windows/
-2. Run the installer and follow these steps:
-   - Choose installation directory
-   - Select components (keep all default)
-   - Choose data directory
-   - Set password for database superuser (postgres)
-   - Keep default port (5432)
-   - Choose locale
-   - **Important**: Check "Add PostgreSQL to PATH" during installation
+```bash
+   sudo apt update
+   sudo apt install postgresql postgresql-contrib
+```
 
 #### 2. Create Database
-After installation, open Command Prompt and run:
 ```bash
-# Connect to PostgreSQL
-psql -U postgres
-
-# In psql console:
-CREATE DATABASE dds_assgn1;
-\q
+   sudo systemctl start postgresql
+   sudo systemctl enable postgresql
+   sudo -u postgres createdb dds_assgn1
+   sudo -u postgres psql
+   ALTER USER postgres WITH PASSWORD '1234';
 ```
 
 #### 3. Set up Python Environment
@@ -48,29 +41,30 @@ venv\Scripts\activate
 source venv/bin/activate
 
 # Install required packages
-pip install psycopg2-binary python-dotenv
-```
-
-#### 4. Configure Environment Variables
-Create a `.env` file in the project root with:
-```
-DB_HOST=localhost
-DB_NAME=dds_assgn1
-DB_USER=postgres
-DB_PASSWORD=your_password_here
-DB_PORT=5432
+pip install psycopg2-binary python-dotenv requests
+# Or
+   pip install -r requirements.txt
 ```
 
 ### Project Structure
 ```
-movielens/
+csdlpt/
 ├── src/
-│   ├── main.py
+│   ├── main.py              # Main application entry point
 │   ├── database/
+│   │   ├── __init__.py
+│   │   └── database.py      # Database connection and operations
 │   ├── partitioning/
+│   │   ├── __init__.py
+│   │   └── partitioning.py  # Range and round-robin partitioning implementation
 │   └── utils/
-└── tests/
-    └── test_data.dat
+│       ├── __init__.py
+│       └── utils.py         # Utility functions for data handling
+├── tests/
+│   └── test_data.dat       # Test data files
+├── .env                    # Environment variables configuration
+├── requirements.txt        # Python package dependencies
+└── README.md              # Project documentation
 ```
 
 ### Features
@@ -78,6 +72,7 @@ movielens/
 - Round-robin partitioning
 - Data insertion with both partitioning methods
 - Partition statistics generation
+- Data integrity verification
 
 ### Usage
 1. Ensure PostgreSQL is running
@@ -94,4 +89,10 @@ If you encounter database connection errors:
    - Ubuntu: `sudo systemctl status postgresql`
 2. Check connection parameters in `.env` file
 3. Ensure database exists: `psql -U postgres -c "\l"`
-4. Verify user permissions: `psql -U postgres -d dds_assgn1` 
+4. Verify user permissions: `psql -U postgres -d dds_assgn1`
+
+### Contributing
+Feel free to submit issues and enhancement requests
+
+### License
+This project is licensed under the MIT License 
