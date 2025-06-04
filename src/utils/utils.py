@@ -38,124 +38,33 @@ def download_movielens_dataset():
     # Return path to ratings.dat file
     return os.path.join(extract_path, "ratings.dat")
 
-def get_partition_stats():
-    """Get statistics about the partitions"""
-    conn = psycopg2.connect(**DatabaseConfig.get_connection_params())
+    """Verify if ratings were loaded successfully by checking record counts"""
     cursor = conn.cursor()
     
     try:
-        # Get range partition statistics
-        print("\nRange Partition Statistics:")
+        # Get total count from ratings table
+        cursor.execute("SELECT COUNT(*) FROM ratings")
+        total_count = cursor.fetchone()[0]
+        
+        print("\n=== RATINGS LOAD VERIFICATION ===")
+        print(f"Total ratings loaded: {total_count:,} records")
+        
+        # Get some sample data to verify content
         cursor.execute("""
-            SELECT table_name, COUNT(*) as record_count
-            FROM information_schema.tables 
-            WHERE table_name LIKE 'ratings_range_%'
-            GROUP BY table_name
-            ORDER BY table_name
+            SELECT userid, movieid, rating 
+            FROM ratings 
+            LIMIT 5
         """)
+        sample_data = cursor.fetchall()
         
-        for table_name, count in cursor.fetchall():
-            print(f"{table_name}: {count} records")
-        
-        # Get round-robin partition statistics
-        print("\nRound-Robin Partition Statistics:")
-        cursor.execute("""
-            SELECT table_name, COUNT(*) as record_count
-            FROM information_schema.tables 
-            WHERE table_name LIKE 'ratings_roundrobin_%'
-            GROUP BY table_name
-            ORDER BY table_name
-        """)
-        
-        for table_name, count in cursor.fetchall():
-            print(f"{table_name}: {count} records")
+        print("\nSample ratings data:")
+        for user_id, movie_id, rating in sample_data:
+            print(f"User {user_id} rated Movie {movie_id}: {rating} stars")
             
+        return total_count > 0
+        
     except Exception as e:
-        print(f"Error getting partition statistics: {e}")
-        raise
+        print(f"Error verifying ratings load: {e}")
+        return False
     finally:
-        cursor.close()
-        conn.close()
-
-def verify_data_integrity():
-    """Verify data integrity across all tables"""
-    conn = psycopg2.connect(**DatabaseConfig.get_connection_params())
-    cursor = conn.cursor()
-    
-    try:
-        # Check total records in main table
-        cursor.execute("SELECT COUNT(*) FROM Ratings")
-        main_count = cursor.fetchone()[0]
-        
-        # Check total records in range partitions
-        cursor.execute("""
-            SELECT SUM(cnt) FROM (
-                SELECT COUNT(*) as cnt FROM information_schema.tables t
-                JOIN pg_class c ON c.relname = t.table_name
-                WHERE t.table_name LIKE 'ratings_range_%' AND t.table_schema = 'public'
-            ) as counts
-        """)
-        range_count = cursor.fetchone()[0] or 0
-        
-        # Check total records in round robin partitions
-        cursor.execute("""
-            SELECT SUM(cnt) FROM (
-                SELECT COUNT(*) as cnt FROM information_schema.tables t
-                JOIN pg_class c ON c.relname = t.table_name
-                WHERE t.table_name LIKE 'ratings_roundrobin_%' AND t.table_schema = 'public'
-            ) as counts
-        """)
-        rrobin_count = cursor.fetchone()[0] or 0
-        
-        # Check data consistency
-        print("\n=== DATA INTEGRITY CHECK ===")
-        print(f"Total records in main table: {main_count}")
-        print(f"Total records in range partitions: {range_count}")
-        print(f"Total records in round robin partitions: {rrobin_count}")
-        
-        # Check for missing or extra records
-        if main_count != range_count or main_count != rrobin_count:
-            print("WARNING: Record counts don't match between tables!")
-            
-            # Check for missing records in detail
-            cursor.execute("""
-                SELECT UserID, MovieID, Rating FROM Ratings
-                EXCEPT
-                SELECT UserID, MovieID, Rating FROM ratings_range_0
-                UNION ALL
-                SELECT UserID, MovieID, Rating FROM ratings_range_1
-                UNION ALL
-                SELECT UserID, MovieID, Rating FROM ratings_range_2
-                UNION ALL
-                SELECT UserID, MovieID, Rating FROM ratings_range_3
-                UNION ALL
-                SELECT UserID, MovieID, Rating FROM ratings_range_4
-            """)
-            missing_in_range = cursor.fetchall()
-            if missing_in_range:
-                print(f"Records missing from range partitions: {len(missing_in_range)}")
-                
-            cursor.execute("""
-                SELECT UserID, MovieID, Rating FROM Ratings
-                EXCEPT
-                SELECT UserID, MovieID, Rating FROM ratings_roundrobin_0
-                UNION ALL
-                SELECT UserID, MovieID, Rating FROM ratings_roundrobin_1
-                UNION ALL
-                SELECT UserID, MovieID, Rating FROM ratings_roundrobin_2
-                UNION ALL
-                SELECT UserID, MovieID, Rating FROM ratings_roundrobin_3
-                UNION ALL
-                SELECT UserID, MovieID, Rating FROM ratings_roundrobin_4
-            """)
-            missing_in_rrobin = cursor.fetchall()
-            if missing_in_rrobin:
-                print(f"Records missing from round robin partitions: {len(missing_in_rrobin)}")
-        else:
-            print("Data is consistent across all tables.")
-            
-    except Exception as e:
-        print(f"Error checking data integrity: {e}")
-    finally:
-        cursor.close()
-        conn.close() 
+        cursor.close() 

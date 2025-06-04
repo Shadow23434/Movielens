@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 from database.database import get_connection, loadratings
 from partitioning.partitioning import rangepartition, roundrobinpartition, rangeinsert, roundrobininsert
-from utils.utils import download_movielens_dataset
+from utils.utils import download_movielens_dataset, verify_ratings_load
 
 # Load environment variables
 load_dotenv()
@@ -17,6 +17,11 @@ def main():
         # Load ratings data
         loadratings("ratings", ratings_path, conn)
         
+        # Verify ratings load
+        if not verify_ratings_load(conn):
+            print("Error: Ratings were not loaded successfully!")
+            return
+            
         # Create range partitions
         rangepartition("ratings", 5, conn)
         
@@ -26,10 +31,6 @@ def main():
         # Insert new ratings
         rangeinsert("ratings", 1, 1, 4.5, conn)
         roundrobininsert("ratings", 2, 2, 3.5, conn)
-        
-        # Get partition statistics
-        # get_partition_stats()
-        # verify_data_integrity()
         
     finally:
         conn.close()

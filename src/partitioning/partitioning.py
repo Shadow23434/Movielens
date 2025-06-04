@@ -1,6 +1,9 @@
 import psycopg2
 from config.config import DatabaseConfig
 
+RANGE_TABLE_PREFIX = 'range_part'
+RROBIN_TABLE_PREFIX = 'rrobin_part'
+
 def rangepartition(ratingstablename, numberofpartitions, openconnection):
     """
     Create range partitions for the ratings table.
@@ -22,21 +25,23 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
         
         # Create partition tables
         for i in range(numberofpartitions):
-            partition_name = f"{ratingstablename}_range_{i}"
+            partition_name = f"{RANGE_TABLE_PREFIX}{i}"
             lower_bound = min_rating + (i * range_size)
             upper_bound = min_rating + ((i + 1) * range_size)
             
             # Create partition table
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {partition_name} (
-                    LIKE {ratingstablename} INCLUDING ALL
+                    userid INT,
+                    movieid INT,
+                    rating FLOAT
                 )
             """)
             
             # Insert data into partition
             cursor.execute(f"""
                 INSERT INTO {partition_name}
-                SELECT * FROM {ratingstablename}
+                SELECT userid, movieid, rating FROM {ratingstablename}
                 WHERE rating >= {lower_bound} AND rating < {upper_bound}
             """)
             
@@ -64,19 +69,21 @@ def roundrobinpartition(ratingstablename, numberofpartitions, openconnection):
     try:
         # Create partition tables
         for i in range(numberofpartitions):
-            partition_name = f"{ratingstablename}_roundrobin_{i}"
+            partition_name = f"{RROBIN_TABLE_PREFIX}{i}"
             
             # Create partition table
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {partition_name} (
-                    LIKE {ratingstablename} INCLUDING ALL
+                    userid INT,
+                    movieid INT,
+                    rating FLOAT
                 )
             """)
             
             # Insert data into partition using modulo
             cursor.execute(f"""
                 INSERT INTO {partition_name}
-                SELECT * FROM {ratingstablename}
+                SELECT userid, movieid, rating FROM {ratingstablename}
                 WHERE MOD(userid, {numberofpartitions}) = {i}
             """)
             
@@ -111,14 +118,12 @@ def rangeinsert(ratingstablename, userid, movieid, rating, openconnection):
         # Calculate partition number
         range_size = (max_rating - min_rating) / 5  # Assuming 5 partitions
         partition_num = int((rating - min_rating) / range_size)
-        partition_name = f"{ratingstablename}_range_{partition_num}"
+        partition_name = f"{RANGE_TABLE_PREFIX}{partition_num}"
         
         # Insert into appropriate partition
         cursor.execute(f"""
             INSERT INTO {partition_name} (userid, movieid, rating)
             VALUES (%s, %s, %s)
-            ON CONFLICT (userid, movieid) DO UPDATE 
-            SET rating = EXCLUDED.rating
         """, (userid, movieid, rating))
         
         openconnection.commit()
@@ -147,14 +152,12 @@ def roundrobininsert(ratingstablename, userid, movieid, rating, openconnection):
     try:
         # Calculate partition number
         partition_num = userid % 5  # Assuming 5 partitions
-        partition_name = f"{ratingstablename}_roundrobin_{partition_num}"
+        partition_name = f"{RROBIN_TABLE_PREFIX}{partition_num}"
         
         # Insert into appropriate partition
         cursor.execute(f"""
             INSERT INTO {partition_name} (userid, movieid, rating)
             VALUES (%s, %s, %s)
-            ON CONFLICT (userid, movieid) DO UPDATE 
-            SET rating = EXCLUDED.rating
         """, (userid, movieid, rating))
         
         openconnection.commit()
