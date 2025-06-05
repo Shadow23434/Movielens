@@ -16,6 +16,11 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
     cursor = openconnection.cursor()
     
     try:
+        # Drop existing partition tables
+        for i in range(numberofpartitions):
+            partition_name = f"{RANGE_TABLE_PREFIX}{i}"
+            cursor.execute(f"DROP TABLE IF EXISTS {partition_name}")
+        
         # Get min and max ratings
         cursor.execute(f"SELECT MIN(rating), MAX(rating) FROM {ratingstablename}")
         min_rating, max_rating = cursor.fetchone()
@@ -34,7 +39,8 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
                 CREATE TABLE IF NOT EXISTS {partition_name} (
                     userid INT,
                     movieid INT,
-                    rating FLOAT
+                    rating FLOAT,
+                    PRIMARY KEY (userid, movieid)
                 )
             """)
             
@@ -115,10 +121,30 @@ def rangeinsert(ratingstablename, userid, movieid, rating, openconnection):
         cursor.execute(f"SELECT MIN(rating), MAX(rating) FROM {ratingstablename}")
         min_rating, max_rating = cursor.fetchone()
         
+        # Get number of partitions from existing range partition tables
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE table_name LIKE '{RANGE_TABLE_PREFIX}%'
+        """)
+        numberofpartitions = cursor.fetchone()[0]
+        
+        if numberofpartitions == 0:
+            raise Exception("No range partitions found. Please run rangepartition first.")
+        
         # Calculate partition number
-        range_size = (max_rating - min_rating) / 5  # Assuming 5 partitions
+        range_size = (max_rating - min_rating) / numberofpartitions
         partition_num = int((rating - min_rating) / range_size)
         partition_name = f"{RANGE_TABLE_PREFIX}{partition_num}"
+        
+        # Check if partition exists
+        cursor.execute(f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = '{partition_name}'
+            )
+        """)
+        if not cursor.fetchone()[0]:
+            raise Exception(f"Partition {partition_name} does not exist")
         
         # Insert into appropriate partition
         cursor.execute(f"""
@@ -150,9 +176,29 @@ def roundrobininsert(ratingstablename, userid, movieid, rating, openconnection):
     cursor = openconnection.cursor()
     
     try:
+        # Get number of partitions from existing round-robin partition tables
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE table_name LIKE '{RROBIN_TABLE_PREFIX}%'
+        """)
+        numberofpartitions = cursor.fetchone()[0]
+        
+        if numberofpartitions == 0:
+            raise Exception("No round-robin partitions found. Please run roundrobinpartition first.")
+        
         # Calculate partition number
-        partition_num = userid % 5  # Assuming 5 partitions
+        partition_num = userid % numberofpartitions
         partition_name = f"{RROBIN_TABLE_PREFIX}{partition_num}"
+        
+        # Check if partition exists
+        cursor.execute(f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = '{partition_name}'
+            )
+        """)
+        if not cursor.fetchone()[0]:
+            raise Exception(f"Partition {partition_name} does not exist")
         
         # Insert into appropriate partition
         cursor.execute(f"""

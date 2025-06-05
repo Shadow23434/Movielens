@@ -1,9 +1,6 @@
 import os
 import requests
 import zipfile
-import psycopg2
-from config.config import DatabaseConfig
-
 
 def download_movielens_dataset():
     """Download and extract MovieLens dataset"""
@@ -37,34 +34,3 @@ def download_movielens_dataset():
     
     # Return path to ratings.dat file
     return os.path.join(extract_path, "ratings.dat")
-
-    """Verify if ratings were loaded successfully by checking record counts"""
-    cursor = conn.cursor()
-    
-    try:
-        # Get total count from ratings table
-        cursor.execute("SELECT COUNT(*) FROM ratings")
-        total_count = cursor.fetchone()[0]
-        
-        print("\n=== RATINGS LOAD VERIFICATION ===")
-        print(f"Total ratings loaded: {total_count:,} records")
-        
-        # Get some sample data to verify content
-        cursor.execute("""
-            SELECT userid, movieid, rating 
-            FROM ratings 
-            LIMIT 5
-        """)
-        sample_data = cursor.fetchall()
-        
-        print("\nSample ratings data:")
-        for user_id, movie_id, rating in sample_data:
-            print(f"User {user_id} rated Movie {movie_id}: {rating} stars")
-            
-        return total_count > 0
-        
-    except Exception as e:
-        print(f"Error verifying ratings load: {e}")
-        return False
-    finally:
-        cursor.close() 

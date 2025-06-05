@@ -1,33 +1,22 @@
 import os
 
 class DatabaseConfig:
-    print("DB_HOST: " ,os.getenv('DB_HOST'))
-    print("DB_NAME: " ,os.getenv('DB_NAME'))
-    print("DB_USER: " ,os.getenv('DB_USER'))
-    print("DB_PASSWORD: "  ,os.getenv('DB_PASSWORD'))
-    print("DB_PORT: " ,os.getenv('DB_PORT'))
-
-    """Database connection configuration"""
-    HOST = os.getenv('DB_HOST')
-    DATABASE = os.getenv('DB_NAME')
-    USER = os.getenv('DB_USER')
-    PASSWORD = os.getenv('DB_PASSWORD')
-    PORT = os.getenv('DB_PORT')
-
     @classmethod
     def get_connection_params(cls):
-        """Returns connection parameters as a dictionary"""
-        return {
-            'host': cls.HOST,
-            'database': cls.DATABASE,
-            'user': cls.USER,
-            'password': cls.PASSWORD,
-            'port': cls.PORT
+        """Returns connection parameters as a dictionary, always fetching latest env vars"""
+        params = {
+            'host': os.getenv('DB_HOST'),
+            'database': os.getenv('DB_NAME'),
+            'user': os.getenv('DB_USER'),
+            'password': os.getenv('DB_PASSWORD'),
+            'port': os.getenv('DB_PORT')
         }
+        print("[DatabaseConfig] Loaded params:", params)
+        return params
 
     @classmethod
     def get_instance(cls):
         """Singleton pattern to get DatabaseConfig instance"""
         if not hasattr(cls, '_instance'):
             cls._instance = cls()
-        return cls._instance 
+        return cls._instance
