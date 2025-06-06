@@ -35,9 +35,6 @@ This project implements database partitioning strategies for the MovieLens datas
 python -m venv venv
 
 # Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On Ubuntu:
 source venv/bin/activate
 
 # Install required packages
@@ -47,32 +44,34 @@ pip install psycopg2-binary python-dotenv requests
 ```
 
 ### Project Structure
+### Project Structure
 ```
-csdlpt/
+movielens/
 ├── src/
-│   ├── main.py              # Main application entry point
+│   ├── main.py                  # Main application entry point
 │   ├── database/
 │   │   ├── __init__.py
-│   │   └── database.py      # Database connection and operations
+│   │   └── database.py          # Database connection and loadratings implementation
 │   ├── partitioning/
 │   │   ├── __init__.py
-│   │   └── partitioning.py  # Range and round-robin partitioning implementation
+│   │   └── partitioning.py      # Range and round-robin partitioning implementation
 │   └── utils/
 │       ├── __init__.py
-│       └── utils.py         # Utility functions for data handling
+│       └── utils.py             # Utility functions for data handling
 ├── tests/
-│   └── test_data.dat       # Test data files
-├── .env                    # Environment variables configuration
-├── requirements.txt        # Python package dependencies
-└── README.md              # Project documentation
+│   ├── Assignment1Tester.py     # Automated tester script
+│   ├── Interface.py             # Interface for tester
+│   ├── testHelper.py            # Helper functions for testing
+│   └── test_data.dat            # Test data file
+├── .env                         # Environment variables configuration
+├── requirements.txt             # Python package dependencies
+└── README.md                    # Project documentation
 ```
 
 ### Features
 - Range partitioning of ratings data
 - Round-robin partitioning
 - Data insertion with both partitioning methods
-- Partition statistics generation
-- Data integrity verification
 
 ### Usage
 1. Ensure PostgreSQL is running
@@ -84,9 +83,7 @@ python src/main.py
 
 ### Troubleshooting
 If you encounter database connection errors:
-1. Verify PostgreSQL is running:
-   - Windows: Check Services app for "PostgreSQL" service
-   - Ubuntu: `sudo systemctl status postgresql`
+1. Verify PostgreSQL is running: `sudo systemctl status postgresql`
 2. Check connection parameters in `.env` file
 3. Ensure database exists: `psql -U postgres -c "\l"`
 4. Verify user permissions: `psql -U postgres -d dds_assgn1`

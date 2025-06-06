@@ -38,7 +38,6 @@ myenv/
 .DS_Store
 
 # Project specific
-*.dat
 *.log
 *.sqlite3
 *.db
