@@ -39,7 +39,6 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
         for setting in optimization_settings:
             try:
                 cursor.execute(setting)
-                print(f"Applied: {setting}")
             except Exception as e:
                 print(f"Warning: Could not apply '{setting}': {e}")
                 # Rollback the failed command and continue
@@ -86,14 +85,15 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
         
         # Convert UNLOGGED table to LOGGED after data loading
         cursor.execute(f"ALTER TABLE {ratingstablename} SET LOGGED")
-        
-        # Commit current transaction before creating indexes
-        openconnection.commit()
-        
+
+        # Commit current transaction before creating indexes, only if not autocommit
+        if not getattr(openconnection, 'autocommit', False):
+            openconnection.commit()
+
         # Create indexes after data loading for better performance
         print("Creating indexes...")
         create_indexes_safely(ratingstablename, openconnection)
-        
+
         # Analyze table for query optimization
         cursor = openconnection.cursor()  # Get fresh cursor after index creation
         cursor.execute(f"ANALYZE {ratingstablename}")
@@ -314,50 +314,38 @@ def create_indexes_safely(ratingstablename, openconnection):
     """
     Create indexes safely, handling CONCURRENTLY requirement
     """
+    old_autocommit = getattr(openconnection, 'autocommit', False)
     try:
         # Set autocommit mode for CONCURRENT index creation
-        old_autocommit = openconnection.autocommit
         openconnection.autocommit = True
         cursor = openconnection.cursor()
-        
         indexes = [
             f"CREATE INDEX CONCURRENTLY idx_{ratingstablename}_userid ON {ratingstablename}(userid)",
             f"CREATE INDEX CONCURRENTLY idx_{ratingstablename}_movieid ON {ratingstablename}(movieid)", 
             f"CREATE INDEX CONCURRENTLY idx_{ratingstablename}_rating ON {ratingstablename}(rating)"
         ]
-        
         for idx_sql in indexes:
+            print(f"Creating index: {idx_sql}")
             try:
-                print(f"Creating index: {idx_sql}")
                 cursor.execute(idx_sql)
-                print("Index created successfully")
             except Exception as e:
                 print(f"Concurrent index creation failed: {e}")
-                # Fallback to regular index creation
-                regular_idx = idx_sql.replace("CONCURRENTLY ", "")
+                # Fallback: try regular index creation (not concurrently)
                 try:
-                    cursor.execute(regular_idx)
-                    print("Regular index created successfully")
+                    fallback_sql = idx_sql.replace("CONCURRENTLY ", "")
+                    cursor.execute(fallback_sql)
+                    print(f"Regular index creation succeeded: {fallback_sql}")
                 except Exception as e2:
                     print(f"Regular index creation also failed: {e2}")
-        
         cursor.close()
-        # Restore original autocommit setting
-        openconnection.autocommit = old_autocommit
-        
     except Exception as e:
         print(f"Error in index creation: {e}")
-        # Restore autocommit and try regular indexes
+        print(f"Fallback index creation failed: {e}")
+    finally:
         try:
             openconnection.autocommit = old_autocommit
-            cursor = openconnection.cursor()
-            cursor.execute(f"CREATE INDEX idx_{ratingstablename}_userid ON {ratingstablename}(userid)")
-            cursor.execute(f"CREATE INDEX idx_{ratingstablename}_movieid ON {ratingstablename}(movieid)")
-            cursor.execute(f"CREATE INDEX idx_{ratingstablename}_rating ON {ratingstablename}(rating)")
-            cursor.close()
-            print("Regular indexes created as fallback")
-        except Exception as e2:
-            print(f"Fallback index creation failed: {e2}")
+        except Exception:
+            pass
 
 def reset_db_settings(cursor):
     """
