@@ -10,7 +10,7 @@ env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(env_path)
 
 from database.database import loadratings as _loadratings
-from partitioning.partitioning import rangepartition, roundrobinpartition, rangeinsert, roundrobininsert
+from partitioning.partitioning import rangepartition,roundrobinpartition, rangeinsert, roundrobininsert
 
 # Re-export the functions that the tester expects
 __all__ = ['loadratings', 'rangepartition', 'roundrobinpartition', 'rangeinsert', 'roundrobininsert']
