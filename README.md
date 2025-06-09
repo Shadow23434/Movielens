@@ -24,9 +24,7 @@ This project implements database partitioning strategies for the MovieLens datas
 ```bash
    sudo systemctl start postgresql
    sudo systemctl enable postgresql
-   sudo -u postgres createdb dds_assgn1
-   sudo -u postgres psql
-   ALTER USER postgres WITH PASSWORD '1234';
+   sudo -u postgres createdb your_database_name
 ```
 
 #### 3. Set up Python Environment
@@ -43,7 +41,24 @@ pip install psycopg2-binary python-dotenv requests
    pip install -r requirements.txt
 ```
 
-### Project Structure
+#### 4. Configure the `.env` File
+
+Create a `.env` file in the project root directory with the following content. Replace the values with your actual PostgreSQL configuration:
+
+```
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=your_database_name
+DB_USER=your_postgres_user
+DB_PASSWORD=your_postgres_password
+```
+
+- `DB_HOST`: Hostname of your PostgreSQL server (usually `localhost`)
+- `DB_PORT`: Port number (default is `5432`)
+- `DB_NAME`: Name of the database you created
+- `DB_USER`: PostgreSQL username
+- `DB_PASSWORD`: PostgreSQL password
+
 ### Project Structure
 ```
 movielens/
@@ -92,4 +107,4 @@ If you encounter database connection errors:
 Feel free to submit issues and enhancement requests
 
 ### License
-This project is licensed under the MIT License 
+This project is licensed under the MIT License

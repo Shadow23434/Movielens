@@ -3,7 +3,6 @@ import os
 class DatabaseConfig:
     @classmethod
     def get_connection_params(cls):
-        """Returns connection parameters as a dictionary, always fetching latest env vars"""
         params = {
             'host': os.getenv('DB_HOST'),
             'database': os.getenv('DB_NAME'),

@@ -11,6 +11,7 @@ def get_connection():
     """Create connection to PostgreSQL database"""
     try:
         conn = psycopg2.connect(**DatabaseConfig.get_connection_params())
+        print("Database connection established.")
         return conn
     except psycopg2.Error as e:
         print(f"Database connection error: {e}")
@@ -22,6 +23,7 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
     Uses COPY command, multi-threading, and optimized PostgreSQL settings
     """
     cursor = openconnection.cursor()
+    print("\nStarting data loading into main 'ratings' table...")
     
     try:
         # Optimize PostgreSQL settings for bulk insert - only runtime changeable parameters

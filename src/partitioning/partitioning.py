@@ -3,8 +3,6 @@ from psycopg2.extras import execute_values
 import traceback
 import time
 
-# Đã bỏ DEBUG_MODE
-
 RANGE_TABLE_PREFIX = 'range_part'
 RROBIN_TABLE_PREFIX = 'rrobin_part'
 USER_ID_COLNAME = 'userid'
@@ -14,14 +12,9 @@ RATING_COLNAME = 'rating'
 def rangepartition(ratingstablename, numberofpartitions, openconnection):
     """
     Create range partitions for the ratings table.
-    
-    Args:
-        ratingstablename: Name of the ratings table
-        numberofpartitions: Number of partitions to create
-        openconnection: Database connection
     """
     cursor = openconnection.cursor()
-    start_time = time.time() # Giữ lại để tính tổng thời gian
+    start_time = time.time() # Keep for timing
 
     try:
         # Drop existing partition tables
@@ -29,7 +22,7 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
             partition_name = f"{RANGE_TABLE_PREFIX}{i}"
             cursor.execute(f"DROP TABLE IF EXISTS {partition_name};")
         
-        # Xóa bảng metadata cho range partition
+        # Drop metadata table for range partition
         cursor.execute("DROP TABLE IF EXISTS range_metadata;") 
         openconnection.commit()
 
@@ -38,12 +31,12 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
         min_rating, max_rating = cursor.fetchone()
 
         if min_rating is None or max_rating is None:
-            raise Exception(f"Bảng {ratingstablename} trống hoặc không tìm thấy min/max rating. Vui lòng tải dữ liệu trước.")
+            raise Exception(f"Table {ratingstablename} is empty or min/max rating not found. Please load data first.")
 
         # Calculate partition range
         range_size = (max_rating - min_rating) / numberofpartitions
 
-        # Tạo metadata cho Range Partitioning
+        # Create metadata for Range Partitioning
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS range_metadata (
                 id SERIAL PRIMARY KEY,
@@ -88,7 +81,7 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
         openconnection.commit()
         end_time = time.time()
         elapsed_time = end_time - start_time
-        print(f"[{ratingstablename}] RangePartition hoàn thành trong {elapsed_time:.2f} giây.")
+        print(f"[{ratingstablename}] RangePartition completed in {elapsed_time:.2f} seconds.")
         
     except Exception as e:
         openconnection.rollback()
@@ -98,26 +91,25 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
     finally:
         cursor.close()
 
-
-## RoundRobin_Partition Function
 def roundrobinpartition(ratingstablename: str, N: int, open_connection):
     start_time = time.time()
 
     if not isinstance(N, int) or N <= 0:
-        print(f"Lỗi: Số phân mảnh N ({N}) phải là số nguyên dương (N >= 1).")
+        print(f"Error: Number of partitions N ({N}) must be a positive integer (N >= 1).")
         return
 
     cursor = open_connection.cursor()
+    print("\nStarting Round Robin Partitioning...")
 
     try:
-        # Step 1: Drop old Round Robin partition tables and metadata table (if they exist)
+        # Drop old Round Robin partition tables and metadata table (if they exist)
         for i in range(N):
             partition_name = f"{RROBIN_TABLE_PREFIX}{i}"
             cursor.execute(f"DROP TABLE IF EXISTS {partition_name};")
         cursor.execute("DROP TABLE IF EXISTS rrobin_metadata;")
         open_connection.commit()
 
-        # Step 2: Create metadata table to store insertion index and number of partitions
+        # Create metadata table to store insertion index and number of partitions
         cursor.execute("""
             CREATE TABLE rrobin_metadata (
                 id SERIAL PRIMARY KEY,
@@ -128,7 +120,7 @@ def roundrobinpartition(ratingstablename: str, N: int, open_connection):
         cursor.execute("INSERT INTO rrobin_metadata (num_partitions) VALUES (%s);", (N,))
         open_connection.commit()
 
-        # Step 3: Create N child tables (partitions) with schema similar to Ratings
+        # Create N child tables (partitions) with schema similar to Ratings
         for i in range(N):
             partition_name = f"{RROBIN_TABLE_PREFIX}{i}"
             cursor.execute(f"""
@@ -141,7 +133,7 @@ def roundrobinpartition(ratingstablename: str, N: int, open_connection):
             """)
         open_connection.commit()
 
-        # Step 4: Insert data into partitions using SQL directly (OPTIMIZED!)
+        # Insert data into partitions using SQL directly (optimized)
         total_records_processed = 0
         for i in range(N):
             partition_name = f"{RROBIN_TABLE_PREFIX}{i}"
@@ -158,7 +150,7 @@ def roundrobinpartition(ratingstablename: str, N: int, open_connection):
             rows_inserted = cursor.rowcount
             total_records_processed += rows_inserted
         
-        # Step 5: Update the final insertion index in the metadata table
+        # Update the final insertion index in the metadata table
         cursor.execute("UPDATE rrobin_metadata SET current_insert_index = %s WHERE id = 1;", (total_records_processed,))
         
         # Reset current_insert_index to 0 for subsequent single inserts by tester
@@ -167,15 +159,16 @@ def roundrobinpartition(ratingstablename: str, N: int, open_connection):
         open_connection.commit()
         end_time = time.time()
         elapsed_time = end_time - start_time
-        print(f"[{ratingstablename}] RoundRobinPartition hoàn thành trong {elapsed_time:.2f} giây.")
+        print(f"[{ratingstablename}] RoundRobinPartition completed in {elapsed_time:.2f} seconds.")
+        print("Round Robin Partitioning completed.")
 
     except psycopg2.Error as e:
-        print(f"Lỗi PostgreSQL khi thực hiện RoundRobin_Partition: {e}")
+        print(f"PostgreSQL error during RoundRobin_Partition: {e}")
         if open_connection: open_connection.rollback()
         traceback.print_exc()
         raise
     except Exception as e:
-        print(f"Lỗi chung khi thực hiện RoundRobin_Partition: {e}")
+        print(f"General error during RoundRobin_Partition: {e}")
         if open_connection: open_connection.rollback()
         traceback.print_exc()
         raise
@@ -186,13 +179,6 @@ def roundrobinpartition(ratingstablename: str, N: int, open_connection):
 def rangeinsert(ratingstablename, userid, movieid, rating, openconnection):
     """
     Insert a new rating using range partitioning.
-    
-    Args:
-        ratingstablename: Name of the ratings table
-        userid: User ID
-        movieid: Movie ID
-        rating: Rating value
-        openconnection: Database connection
     """
     cursor = openconnection.cursor()
     
@@ -242,56 +228,55 @@ def rangeinsert(ratingstablename, userid, movieid, rating, openconnection):
     finally:
         cursor.close()
 
-## RoundRobin_Insert Function
 def roundrobininsert(ratingstablename, UserID: int, MovieID: int, Rating: float, openconnection):
     """
-    Chèn một bộ dữ liệu mới vào đúng phân mảnh Round Robin.
+    Insert a new record into the correct Round Robin partition.
     """
     start_time = time.time()
     cursor = openconnection.cursor()
     try:
-        # Step 1: Get current insertion index and number of partitions from metadata table
+        # Get current insertion index and number of partitions from metadata table
         cursor.execute("SELECT current_insert_index, num_partitions FROM rrobin_metadata WHERE id = 1 FOR UPDATE;")
         metadata = cursor.fetchone()
 
         if not metadata:
-            print("Lỗi: Không tìm thấy thông tin metadata Round Robin. Vui lòng chạy RoundRobin_Partition() trước.")
+            print("Error: Round Robin metadata not found. Please run RoundRobin_Partition() first.")
             openconnection.rollback()
             return
 
         current_insert_index, N = metadata[0], metadata[1]
 
         if N <= 0:
-            print(f"Lỗi: Số lượng phân mảnh N trong metadata ({N}) không hợp lệ.")
+            print(f"Error: Number of partitions N in metadata ({N}) is invalid.")
             openconnection.rollback()
             return
 
-        # Step 2: Determine the target partition table name
+        # Determine the target partition table name
         partition_index = current_insert_index % N
         target_table = f"{RROBIN_TABLE_PREFIX}{partition_index}"
 
-        # Step 3: Insert the new record into the target partition table
+        # Insert the new record into the target partition table
         cursor.execute(f"""
             INSERT INTO {target_table} (UserID, MovieID, Rating)
             VALUES (%s, %s, %s);
         """, (UserID, MovieID, Rating))
 
-        # Step 4: Update insertion index in the metadata table
+        # Update insertion index in the metadata table
         new_insert_index = current_insert_index + 1
         cursor.execute("UPDATE rrobin_metadata SET current_insert_index = %s WHERE id = 1;", (new_insert_index,))
 
         openconnection.commit()
         end_time = time.time()
         elapsed_time = end_time - start_time
-        print(f"[Round Robin Insert] Insert ({UserID}, {MovieID}, {Rating}) vào {target_table} hoàn thành trong {elapsed_time:.4f} giây. (Index: {new_insert_index - 1})")
+        print(f"[Round Robin Insert] Insert ({UserID}, {MovieID}, {Rating}) into {target_table} completed in {elapsed_time:.4f} seconds. (Index: {new_insert_index - 1})")
 
     except psycopg2.Error as e:
-        print(f"Lỗi PostgreSQL khi chèn dữ liệu vào Round Robin Partition: {e}")
+        print(f"PostgreSQL error during Round Robin Partition insert: {e}")
         if openconnection: openconnection.rollback()
         traceback.print_exc()
         raise
     except Exception as e:
-        print(f"Lỗi chung khi chèn dữ liệu vào Round Robin Partition: {e}")
+        print(f"General error during Round Robin Partition insert: {e}")
         if openconnection: openconnection.rollback()
         traceback.print_exc()
         raise
