@@ -34,9 +34,6 @@ if __name__ == '__main__':
             else:
                 print("loadratings function fail!")
             
-            # Nếu loadratings fail, không nên tiếp tục các test khác.
-            if not result:
-                print("LoadRatings failed, skipping further tests.")
             
             # --- Các test cho rangepartition và rangeinsert đã được comment hoàn toàn ---
             # [result, e] = testHelper.testrangepartition(MyAssignment, RATINGS_TABLE, 5, conn, 0, ACTUAL_ROWS_IN_INPUT_FILE)
@@ -63,11 +60,6 @@ if __name__ == '__main__':
                 print("roundrobinpartition function pass!")
             else:
                 print("roundrobinpartition function fail")
-            
-            # Nếu roundrobinpartition fail, không nên tiếp tục roundrobininsert
-            if not result:
-                print("RoundRobinPartition failed, skipping RoundRobinInsert test.")
-            else:
                 # --- Test for roundrobininsert ---
                 # ALERT:: Change the partition index according to your testing sequence.
                 # Chỉ chạy một trong số này, bạn có thể comment/uncomment để test các trường hợp khác nhau.
