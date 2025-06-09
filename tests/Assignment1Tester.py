@@ -5,13 +5,13 @@ DATABASE_NAME = 'dds_assgn1'
 
 # TODO: Change these as per your code
 RATINGS_TABLE = 'ratings'
-RANGE_TABLE_PREFIX = 'range_part'
+RANGE_TABLE_PREFIX = 'range_part' 
 RROBIN_TABLE_PREFIX = 'rrobin_part'
 USER_ID_COLNAME = 'userid'
 MOVIE_ID_COLNAME = 'movieid'
 RATING_COLNAME = 'rating'
-INPUT_FILE_PATH = 'test_data.dat'
-ACTUAL_ROWS_IN_INPUT_FILE = 20  # Number of lines in the input file
+INPUT_FILE_PATH = 'ratings.dat'
+ACTUAL_ROWS_IN_INPUT_FILE = 10000054 
 
 import psycopg2
 import traceback
@@ -27,48 +27,64 @@ if __name__ == '__main__':
 
             testHelper.deleteAllPublicTables(conn)
 
+            # --- Test for loadratings ---
             [result, e] = testHelper.testloadratings(MyAssignment, RATINGS_TABLE, INPUT_FILE_PATH, conn, ACTUAL_ROWS_IN_INPUT_FILE)
             if result :
                 print("loadratings function pass!")
             else:
                 print("loadratings function fail!")
-
-            [result, e] = testHelper.testrangepartition(MyAssignment, RATINGS_TABLE, 5, conn, 0, ACTUAL_ROWS_IN_INPUT_FILE)
-            if result :
-                print("rangepartition function pass!")
-            else:
-                print("rangepartition function fail!")
+            
+            # Nếu loadratings fail, không nên tiếp tục các test khác.
+            if not result:
+                print("LoadRatings failed, skipping further tests.")
+            
+            # --- Các test cho rangepartition và rangeinsert đã được comment hoàn toàn ---
+            # [result, e] = testHelper.testrangepartition(MyAssignment, RATINGS_TABLE, 5, conn, 0, ACTUAL_ROWS_IN_INPUT_FILE)
+            # if result :
+            #     print("rangepartition function pass!")
+            # else:
+            #     print("rangepartition function fail!")
 
             # ALERT:: Use only one at a time i.e. uncomment only one line at a time and run the script
-            [result, e] = testHelper.testrangeinsert(MyAssignment, RATINGS_TABLE, 100, 2, 3, conn, '2')
+            # [result, e] = testHelper.testrangeinsert(MyAssignment, RATINGS_TABLE, 100, 2, 3, conn, '2')
             # [result, e] = testHelper.testrangeinsert(MyAssignment, RATINGS_TABLE, 100, 2, 0, conn, '0')
-            if result:
-                print("rangeinsert function pass!")
-            else:
-                print("rangeinsert function fail!")
+            # if result:
+            #     print("rangeinsert function pass!")
+            # else:
+            #     print("rangeinsert function fail!")
 
+            # --- Chuẩn bị lại dữ liệu cho các test Round Robin ---
             testHelper.deleteAllPublicTables(conn)
             MyAssignment.loadratings(RATINGS_TABLE, INPUT_FILE_PATH, conn)
 
+            # --- Test for roundrobinpartition ---
             [result, e] = testHelper.testroundrobinpartition(MyAssignment, RATINGS_TABLE, 5, conn, 0, ACTUAL_ROWS_IN_INPUT_FILE)
             if result :
                 print("roundrobinpartition function pass!")
             else:
                 print("roundrobinpartition function fail")
-
-            # ALERT:: Change the partition index according to your testing sequence.
-            [result, e] = testHelper.testroundrobininsert(MyAssignment, RATINGS_TABLE, 100, 1, 3, conn, '0')
-            # [result, e] = testHelper.testroundrobininsert(MyAssignment, RATINGS_TABLE, 100, 1, 3, conn, '1')
-            # [result, e] = testHelper.testroundrobininsert(MyAssignment, RATINGS_TABLE, 100, 1, 3, conn, '2')
-            if result :
-                print("roundrobininsert function pass!")
+            
+            # Nếu roundrobinpartition fail, không nên tiếp tục roundrobininsert
+            if not result:
+                print("RoundRobinPartition failed, skipping RoundRobinInsert test.")
             else:
-                print("roundrobininsert function fail!")
+                # --- Test for roundrobininsert ---
+                # ALERT:: Change the partition index according to your testing sequence.
+                # Chỉ chạy một trong số này, bạn có thể comment/uncomment để test các trường hợp khác nhau.
+                [result, e] = testHelper.testroundrobininsert(MyAssignment, RATINGS_TABLE, 100, 1, 3, conn, '0')
+                #[result, e] = testHelper.testroundrobininsert(MyAssignment, RATINGS_TABLE, 100, 1, 3, conn, '1')
+                #[result, e] = testHelper.testroundrobininsert(MyAssignment, RATINGS_TABLE, 100, 1, 3, conn, '2')
+                if result :
+                    print("roundrobininsert function pass!")
+                else:
+                    print("roundrobininsert function fail!")
 
+            # --- Tùy chọn xóa tất cả các bảng ---
             choice = input('Press enter to Delete all tables? ')
             if choice == '':
                 testHelper.deleteAllPublicTables(conn)
-            if not conn.close:
+            
+            if not conn.closed: 
                 conn.close()
 
     except Exception as detail:
