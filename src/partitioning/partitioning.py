@@ -207,7 +207,9 @@ def rangeinsert(ratingstablename, userid, movieid, rating, openconnection):
             raise Exception(f"Partition {partition_name} does not exist")
 
         # Insert into appropriate partition
-        cursor.execute(f"INSERT INTO {partition_name} (userid,movieid,rating) VALUES (%s, %s, %s)", (userid, movieid, rating))
+        cursor.execute(
+            f"INSERT INTO {partition_name} (userid,movieid,rating) VALUES (%s, %s, %s)", (userid, movieid, rating)
+        )
 
         openconnection.commit()
         print(f"Inserted rating into range partition {partition_num}")
@@ -218,60 +220,6 @@ def rangeinsert(ratingstablename, userid, movieid, rating, openconnection):
         raise
     finally:
         cursor.close()
-
-
-    """
-    Insert a new rating using round-robin partitioning.
-    
-    Args:
-        ratingstablename: Name of the ratings table
-        userid: User ID
-        movieid: Movie ID
-        rating: Rating value
-        openconnection: Database connection
-    """
-    cursor = openconnection.cursor()
-    
-    try:
-        # Get number of partitions from existing round-robin partition tables
-        cursor.execute(f"""
-            SELECT COUNT(*) FROM information_schema.tables 
-            WHERE table_name LIKE '{RROBIN_TABLE_PREFIX}%'
-        """)
-        numberofpartitions = cursor.fetchone()[0]
-        
-        if numberofpartitions == 0:
-            raise Exception("No round-robin partitions found. Please run roundrobinpartition first.")
-        
-        # Calculate partition number
-        partition_num = userid % numberofpartitions
-        partition_name = f"{RROBIN_TABLE_PREFIX}{partition_num}"
-        
-        # Check if partition exists
-        cursor.execute(f"""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = '{partition_name}'
-            )
-        """)
-        if not cursor.fetchone()[0]:
-            raise Exception(f"Partition {partition_name} does not exist")
-        
-        # Insert into appropriate partition
-        cursor.execute(f"""
-            INSERT INTO {partition_name} (userid, movieid, rating)
-            VALUES (%s, %s, %s)
-        """, (userid, movieid, rating))
-        
-        openconnection.commit()
-        print(f"Inserted rating into round-robin partition {partition_num}")
-        
-    except Exception as e:
-        openconnection.rollback()
-        print(f"Error inserting rating: {e}")
-        raise
-    finally:
-        cursor.close() 
 
 def roundrobininsert(ratingstablename, UserID: int, MovieID: int, Rating: float, openconnection):
     """
