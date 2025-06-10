@@ -11,9 +11,7 @@ from partitioning.partitioning import rangepartition, roundrobinpartition, range
 from utils.utils import download_movielens_dataset
 
 def main():
-    conn = None
-    ratings_table_name = "ratings" 
-    num_rr_partitions = 3
+    ratings_table_name = "ratings"
 
     try:
         conn = get_connection()
@@ -22,13 +20,37 @@ def main():
 
         loadratings(ratings_table_name, ratings_path, conn)
 
-        roundrobinpartition(ratings_table_name, num_rr_partitions, conn)
+        # Input number of partitions for range partitioning
+        number_of_partitions_range = int(input("Enter number of partitions for RANGE partitioning: "))
+        rangepartition(ratings_table_name, number_of_partitions_range, conn)
 
-        print("\nRound Robin Inserts with example records...")
-        roundrobininsert(ratings_table_name, 10000000, 10000000, 4.5, conn)
-        roundrobininsert(ratings_table_name, 10000001, 10000001, 3.0, conn)
-        roundrobininsert(ratings_table_name, 10000002, 10000002, 5.0, conn)
-        print("Round Robin Inserts completed.")
+        # Allow multiple Range Inserts
+        while True:
+            print("\nRange Insert with user input record...")
+            userid_range = int(input("Enter userid for range insert: "))
+            movieid_range = int(input("Enter movieid for range insert: "))
+            rating_range = float(input("Enter rating for range insert: "))
+            rangeinsert(ratings_table_name, userid_range, movieid_range, rating_range, conn)
+            print("Range Insert completed.")
+            cont = input("Do you want to insert another record with RANGE partitioning? (y/n): ").strip().lower()
+            if cont != 'y':
+                break
+
+        # Input number of partitions for round robin partitioning
+        number_of_partitions_rr = int(input("Enter number of partitions for ROUND ROBIN partitioning: "))
+        roundrobinpartition(ratings_table_name, number_of_partitions_rr, conn)
+
+        # Allow multiple Round Robin Inserts
+        while True:
+            print("\nRound Robin Insert with user input record...")
+            userid_rr = int(input("Enter userid for round robin insert: "))
+            movieid_rr = int(input("Enter movieid for round robin insert: "))
+            rating_rr = float(input("Enter rating for round robin insert: "))
+            roundrobininsert(ratings_table_name, userid_rr, movieid_rr, rating_rr, conn)
+            print("Round Robin Insert completed.")
+            cont = input("Do you want to insert another record with ROUND ROBIN partitioning? (y/n): ").strip().lower()
+            if cont != 'y':
+                break
 
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")

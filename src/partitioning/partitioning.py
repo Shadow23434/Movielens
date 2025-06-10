@@ -1,5 +1,4 @@
 import psycopg2
-from psycopg2.extras import execute_values
 import traceback
 import time
 
@@ -13,85 +12,72 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
     """
     Create range partitions for the ratings table.
     """
+    print(f"\n--- Starting RANGE partitioning with {numberofpartitions} partitions ---")
     cursor = openconnection.cursor()
-    start_time = time.time() # Keep for timing
 
     try:
-        # Drop existing partition tables
+        # Drop old partitions safely
         for i in range(numberofpartitions):
             partition_name = f"{RANGE_TABLE_PREFIX}{i}"
-            cursor.execute(f"DROP TABLE IF EXISTS {partition_name};")
-        
-        # Drop metadata table for range partition
-        cursor.execute("DROP TABLE IF EXISTS range_metadata;") 
+            try:
+                cursor.execute(f"DROP TABLE IF EXISTS {partition_name}")
+            except Exception as e:
+                print(f"Warning: Could not drop table {partition_name}: {e}")
+                openconnection.rollback()
+
+        # Reset transaction
         openconnection.commit()
 
-        # Get min and max ratings
+        # Get min and max rating
         cursor.execute(f"SELECT MIN(rating), MAX(rating) FROM {ratingstablename}")
         min_rating, max_rating = cursor.fetchone()
 
-        if min_rating is None or max_rating is None:
-            raise Exception(f"Table {ratingstablename} is empty or min/max rating not found. Please load data first.")
-
-        # Calculate partition range
+        # Calculate partition size
         range_size = (max_rating - min_rating) / numberofpartitions
 
-        # Create metadata for Range Partitioning
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS range_metadata (
-                id SERIAL PRIMARY KEY,
-                min_rating FLOAT NOT NULL,
-                max_rating FLOAT NOT NULL,
-                num_partitions INT NOT NULL
-            );
-        """)
-        cursor.execute("INSERT INTO range_metadata (min_rating, max_rating, num_partitions) VALUES (%s, %s, %s);",
-                       (min_rating, max_rating, numberofpartitions))
-        openconnection.commit()
+        for i in range (numberofpartitions):
+            partition_name = f"{RANGE_TABLE_PREFIX}{i}"
+            cursor.execute(f"DROP TABLE IF EXISTS {partition_name} CASCADE;")
 
-        # Create partition tables and insert data
         for i in range(numberofpartitions):
             partition_name = f"{RANGE_TABLE_PREFIX}{i}"
-            lower_bound = min_rating + (i * range_size)
-            upper_bound = min_rating + ((i + 1) * range_size)
-            
-            # Special handling for the last partition to include max_rating
-            if i == numberofpartitions - 1:
-                where_clause = f"rating >= {lower_bound} AND rating <= {upper_bound}"
-            else:
-                where_clause = f"rating >= {lower_bound} AND rating < {upper_bound}"
+            lower_bound = min_rating + i * range_size
+            upper_bound = min_rating + (i + 1) * range_size
 
-            # Create partition table
+            # Handle last partition with inclusive upper bound
+            if i == numberofpartitions - 1:
+                condition = f"rating >= {lower_bound} AND rating <= {upper_bound}"
+            else:
+                condition = f"rating >= {lower_bound} AND rating < {upper_bound}"
+
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {partition_name} (
                     userid INT,
                     movieid INT,
-                    rating FLOAT,
-                    PRIMARY KEY (userid, movieid, Rating)
+                    rating FLOAT
+                    
                 )
             """)
-            
-            # Insert data into partition
             cursor.execute(f"""
                 INSERT INTO {partition_name}
                 SELECT userid, movieid, rating FROM {ratingstablename}
-                WHERE {where_clause}
+                WHERE {condition}
             """)
-        
+
         openconnection.commit()
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        print(f"[{ratingstablename}] RangePartition completed in {elapsed_time:.2f} seconds.")
-        
+        print(f"Created {numberofpartitions} range partitions")
+        print(f"--- Finished RANGE partitioning ---\n")
+
     except Exception as e:
         openconnection.rollback()
         print(f"Error creating range partitions: {e}")
-        traceback.print_exc()
         raise
+
     finally:
         cursor.close()
 
 def roundrobinpartition(ratingstablename: str, N: int, open_connection):
+    print(f"\n--- Starting ROUND ROBIN partitioning with {N} partitions ---")
     start_time = time.time()
 
     if not isinstance(N, int) or N <= 0:
@@ -161,6 +147,7 @@ def roundrobinpartition(ratingstablename: str, N: int, open_connection):
         elapsed_time = end_time - start_time
         print(f"[{ratingstablename}] RoundRobinPartition completed in {elapsed_time:.2f} seconds.")
         print("Round Robin Partitioning completed.")
+        print(f"--- Finished ROUND ROBIN partitioning ---\n")
 
     except psycopg2.Error as e:
         print(f"PostgreSQL error during RoundRobin_Partition: {e}")
@@ -179,6 +166,13 @@ def roundrobinpartition(ratingstablename: str, N: int, open_connection):
 def rangeinsert(ratingstablename, userid, movieid, rating, openconnection):
     """
     Insert a new rating using range partitioning.
+    
+    Args:
+        ratingstablename: Name of the ratings table
+        userid: User ID
+        movieid: Movie ID
+        rating: Rating value
+        openconnection: Database connection
     """
     cursor = openconnection.cursor()
     
@@ -186,21 +180,72 @@ def rangeinsert(ratingstablename, userid, movieid, rating, openconnection):
         # Get min and max ratings
         cursor.execute(f"SELECT MIN(rating), MAX(rating) FROM {ratingstablename}")
         min_rating, max_rating = cursor.fetchone()
-        
+
         # Get number of partitions from existing range partition tables
         cursor.execute(f"""
             SELECT COUNT(*) FROM information_schema.tables 
             WHERE table_name LIKE '{RANGE_TABLE_PREFIX}%'
         """)
         numberofpartitions = cursor.fetchone()[0]
-        
+
         if numberofpartitions == 0:
             raise Exception("No range partitions found. Please run rangepartition first.")
-        
+
         # Calculate partition number
         range_size = (max_rating - min_rating) / numberofpartitions
         partition_num = int((rating - min_rating) / range_size)
         partition_name = f"{RANGE_TABLE_PREFIX}{partition_num}"
+
+        # Check if partition exists
+        cursor.execute(f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = '{partition_name}'
+            )
+        """)
+        if not cursor.fetchone()[0]:
+            raise Exception(f"Partition {partition_name} does not exist")
+
+        # Insert into appropriate partition
+        cursor.execute(f"INSERT INTO {partition_name} (userid,movieid,rating) VALUES (%s, %s, %s)", (userid, movieid, rating))
+
+        openconnection.commit()
+        print(f"Inserted rating into range partition {partition_num}")
+
+    except Exception as e:
+        openconnection.rollback()
+        print(f"Error inserting rating: {e}")
+        raise
+    finally:
+        cursor.close()
+
+
+    """
+    Insert a new rating using round-robin partitioning.
+    
+    Args:
+        ratingstablename: Name of the ratings table
+        userid: User ID
+        movieid: Movie ID
+        rating: Rating value
+        openconnection: Database connection
+    """
+    cursor = openconnection.cursor()
+    
+    try:
+        # Get number of partitions from existing round-robin partition tables
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE table_name LIKE '{RROBIN_TABLE_PREFIX}%'
+        """)
+        numberofpartitions = cursor.fetchone()[0]
+        
+        if numberofpartitions == 0:
+            raise Exception("No round-robin partitions found. Please run roundrobinpartition first.")
+        
+        # Calculate partition number
+        partition_num = userid % numberofpartitions
+        partition_name = f"{RROBIN_TABLE_PREFIX}{partition_num}"
         
         # Check if partition exists
         cursor.execute(f"""
@@ -219,14 +264,14 @@ def rangeinsert(ratingstablename, userid, movieid, rating, openconnection):
         """, (userid, movieid, rating))
         
         openconnection.commit()
-        print(f"Inserted rating into range partition {partition_num}")
+        print(f"Inserted rating into round-robin partition {partition_num}")
         
     except Exception as e:
         openconnection.rollback()
         print(f"Error inserting rating: {e}")
         raise
     finally:
-        cursor.close()
+        cursor.close() 
 
 def roundrobininsert(ratingstablename, UserID: int, MovieID: int, Rating: float, openconnection):
     """

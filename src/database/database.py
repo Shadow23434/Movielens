@@ -1,11 +1,11 @@
 import psycopg2
 import psycopg2.extras
-from config.config import DatabaseConfig
 import time
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
+from config.config import DatabaseConfig
 
 def get_connection():
     """Create connection to PostgreSQL database"""
